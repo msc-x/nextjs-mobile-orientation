@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    
+</body>
+</html>
+<script>
+    // 编码 ：找出每个人的最高分
+let arr = [
+    {id: 3, name: 'wade', score: 90},
+    {id: 6, name: 'james', score: 96},
+    {id: 6, name: 'james', score: 86},
+    {id: 24, name: 'kobe', score: 100},
+    {id: 24, name: 'kobe', score: 81},
+
+    {id: 6, name: 'james', score: 99},
+]
+function findMaxObj (arr) {
+    const obj = {}
+    arr.forEach(item => {
+        obj[item.name] = item.score
+    })
+    arr.forEach(item => {
+        obj[item.name] = obj[item.name] > item.score ? obj[item.name] : item.score
+    })
+    return obj;
+}
+console.log(findMaxObj(arr))
+</script>

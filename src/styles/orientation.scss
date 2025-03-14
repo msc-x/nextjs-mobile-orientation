@@ -1,0 +1,105 @@
+// 横屏提示遮罩
+.orientation-mask {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: white;
+  text-align: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+  
+  &.show {
+    display: flex;
+  }
+
+  .icon {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 20px;
+    animation: rotate 1.5s infinite;
+    will-change: transform;
+  }
+
+  .text {
+    font-size: clamp(14px, 4vw, 24px);
+    line-height: 1.5;
+    padding: 0 20px;
+    max-width: min(90%, 400px);
+    word-break: break-word;
+  }
+}
+
+// 横屏容器
+.landscape-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  font-size: clamp(12px, 4vw, 16px);
+  
+  @media screen and (orientation: landscape) {
+    // 横屏时的样式
+    &.force-landscape {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) 
+              env(safe-area-inset-bottom) env(safe-area-inset-left);
+
+      // 处理超宽屏幕
+      @media screen and (min-aspect-ratio: 16/9) {
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: calc(100vh * 16/9);
+          height: 100%;
+          background: inherit;
+        }
+      }
+    }
+  }
+
+  @media screen and (orientation: portrait) {
+    // 竖屏时的样式
+    &.force-landscape {
+      transform: rotate(90deg);
+      transform-origin: left top;
+      width: 100vh;
+      height: 100vw;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      will-change: transform;
+
+      // 处理超长屏幕
+      @media screen and (min-aspect-ratio: 16/9) {
+        width: calc(100vw * 9/16);
+        height: 100vw;
+        top: 50%;
+        transform: rotate(90deg) translateY(-50%);
+      }
+    }
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 
