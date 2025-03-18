@@ -1,1 +1,33 @@
- 
+.layoutContainer {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.mainContent {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  transition: margin-left 0.3s ease;
+  margin-left: 240px; /* Same as default sidebar width */
+  box-sizing: border-box;
+}
+
+.mainContent.expanded {
+  margin-left: 80px; /* Same as collapsed sidebar width */
+}
+
+/* 移动设备响应式样式 */
+@media (max-width: 768px) {
+  .mainContent {
+    margin-left: 0;
+    padding: 16px;
+    padding-top: 70px; /* 为左上角菜单按钮留出空间 */
+  }
+  
+  .mainContent.expanded {
+    margin-left: 0;
+  }
+} 
