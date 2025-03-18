@@ -11,8 +11,11 @@ const ChatInterface: React.FC = () => {
   // 保存API Key
   const [apiKey, setApiKey] = useState<string>('');
   
-  // 消息列表
+  // 消息列表 - 当前显示的消息
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
+  
+  // 所有聊天的消息记录，格式为 {[chatId]: ChatMessageType[]}
+  const [chatMessages, setChatMessages] = useState<{[key: string]: ChatMessageType[]}>({});
   
   // 当前正在流式生成的消息内容
   const [streamingContent, setStreamingContent] = useState<string>('');
@@ -38,10 +41,47 @@ const ChatInterface: React.FC = () => {
   // 余额不足错误
   const [creditsError, setCreditsError] = useState(false);
   
+  // 系统消息 - 为了保持一致性，只需在每个新对话中添加一次
+  const systemMessage: ChatMessageType = {
+    role: 'system',
+    content: '你是一个友好、知识渊博的AI助手，能够回答各种问题并提供帮助。请记住我们之前的对话，保持上下文连贯性。'
+  };
+
   // 处理API Key变更
   const handleApiKeyChange = (key: string) => {
     setApiKey(key);
     setCreditsError(false); // 重置余额错误状态
+  };
+
+  // 处理选择聊天
+  const handleSelectChat = (chatId: string) => {
+    // 如果已经选择了当前聊天，不做任何操作
+    if (chatId === currentChatId) return;
+    
+    console.log('选择聊天:', chatId);
+    
+    // 保存当前聊天的消息（如果有当前聊天ID）
+    if (currentChatId && messages.length > 0) {
+      setChatMessages(prev => ({
+        ...prev,
+        [currentChatId]: messages
+      }));
+    }
+    
+    // 设置新的当前聊天ID
+    setCurrentChatId(chatId);
+    
+    // 加载所选聊天的消息
+    const chatMsgs = chatMessages[chatId] || [];
+    setMessages(chatMsgs);
+    console.log(`加载聊天 ${chatId} 的消息，数量:`, chatMsgs.length);
+    
+    // 重置流式内容和错误状态
+    setStreamingContent('');
+    setIsStreaming(false);
+    setIsLoading(false);
+    setError(null);
+    setCreditsError(false);
   };
 
   // 处理发送消息
@@ -51,11 +91,41 @@ const ChatInterface: React.FC = () => {
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     
-    // 如果是新对话的第一条消息，添加到聊天历史
-    if (messages.length === 0) {
+    // 如果是新对话的第一条消息，创建新聊天并添加系统消息
+    let messagesWithSystem = [...updatedMessages];
+    if (!currentChatId) {
+      // 生成新的聊天ID
+      const newChatId = `chat-${chatHistory.length}`;
+      
       // 截取前30个字符作为聊天标题
       const chatTitle = content.length > 30 ? content.substring(0, 27) + '...' : content;
       setChatHistory(prev => [...prev, chatTitle]);
+      
+      // 设置为当前聊天
+      setCurrentChatId(newChatId);
+      
+      // 在消息开头添加系统消息
+      messagesWithSystem = [systemMessage, ...updatedMessages];
+      
+      // 保存消息到新的聊天
+      setChatMessages(prev => ({
+        ...prev,
+        [newChatId]: messagesWithSystem
+      }));
+    } else {
+      // 检查现有消息中是否已经有系统消息
+      const hasSystemMessage = messages.some(msg => msg.role === 'system');
+      
+      // 如果没有系统消息，添加一个
+      if (!hasSystemMessage && messages.length > 0) {
+        messagesWithSystem = [systemMessage, ...updatedMessages];
+      }
+      
+      // 更新现有聊天的消息
+      setChatMessages(prev => ({
+        ...prev,
+        [currentChatId]: messagesWithSystem
+      }));
     }
     
     // 重置流式内容和状态
@@ -66,20 +136,33 @@ const ChatInterface: React.FC = () => {
     setCreditsError(false);
 
     try {
+      // 确保发送给API的消息包含系统消息和完整历史
+      const apiMessages = messagesWithSystem;
+      console.log('发送给API的消息数量:', apiMessages.length);
+      
       // 调用API进行流式响应
       await createChatCompletion(
         apiKey,
-        updatedMessages,
+        apiMessages,
         (content, done) => {
           setStreamingContent(content);
           if (done) {
             setIsStreaming(false);
             setIsLoading(false);
             // 响应完成后，添加助手消息到列表
-            setMessages(prev => [
-              ...prev, 
+            const newMessages: ChatMessageType[] = [
+              ...messagesWithSystem, 
               { role: 'assistant', content }
-            ]);
+            ];
+            setMessages(newMessages);
+            
+            // 同时更新聊天历史中的消息
+            if (currentChatId) {
+              setChatMessages(prev => ({
+                ...prev,
+                [currentChatId]: newMessages
+              }));
+            }
           }
         }
       );
@@ -100,7 +183,16 @@ const ChatInterface: React.FC = () => {
 
   // 开始新对话
   const handleNewChat = () => {
-    setMessages([]);
+    // 如果当前有聊天且有消息，保存它
+    if (currentChatId && messages.length > 0) {
+      setChatMessages(prev => ({
+        ...prev,
+        [currentChatId]: messages
+      }));
+    }
+    
+    // 重置当前状态
+    setMessages([]); // 清空消息，但不添加系统消息，等到用户发送第一条消息时再添加
     setStreamingContent('');
     setIsStreaming(false);
     setIsLoading(false);
@@ -112,13 +204,73 @@ const ChatInterface: React.FC = () => {
   // 清除所有对话
   const handleClearConversations = () => {
     setChatHistory([]);
+    setChatMessages({});
     handleNewChat();
+  };
+
+  // 删除单条聊天记录
+  const handleDeleteChat = (chatId: string) => {
+    // 找到要删除的聊天索引
+    const index = parseInt(chatId.replace('chat-', ''));
+    
+    // 复制一份聊天历史记录和消息
+    const newChatHistory = [...chatHistory];
+    const newChatMessages = {...chatMessages};
+    
+    // 删除对应的聊天历史和消息
+    newChatHistory.splice(index, 1);
+    delete newChatMessages[chatId];
+    
+    // 更新状态
+    setChatHistory(newChatHistory);
+    setChatMessages(newChatMessages);
+    
+    // 如果删除的是当前选中的聊天，则清空当前显示的消息
+    if (currentChatId === chatId) {
+      setMessages([]);
+      setCurrentChatId(undefined);
+    } else if (currentChatId) {
+      // 如果当前聊天ID的索引大于被删除的聊天索引，需要更新当前聊天ID
+      const currentIndex = parseInt(currentChatId.replace('chat-', ''));
+      if (currentIndex > index) {
+        const newCurrentChatId = `chat-${currentIndex - 1}`;
+        setCurrentChatId(newCurrentChatId);
+        setMessages(newChatMessages[newCurrentChatId] || []);
+      }
+    }
   };
 
   // 消息列表更新时滚动到底部
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      // 使用更平滑的滚动效果，但确保滚动到正确位置
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: messages.length > 1 ? 'smooth' : 'auto',
+        block: 'end' // 确保滚动到底部
+      });
+    }
   }, [messages, streamingContent]);
+
+  // 监听窗口大小变化，确保正确滚动
+  useEffect(() => {
+    const handleResize = () => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // 在聚焦输入框时确保消息可见
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100); // 轻微延迟确保键盘已完全弹出
+  };
 
   // 可选：从localStorage加载API Key
   /*
@@ -129,6 +281,39 @@ const ChatInterface: React.FC = () => {
     }
   }, []);
   */
+
+  // 可选：从localStorage加载聊天历史和消息
+  useEffect(() => {
+    const savedChatHistory = localStorage.getItem('chat_history');
+    const savedChatMessages = localStorage.getItem('chat_messages');
+    
+    if (savedChatHistory) {
+      try {
+        setChatHistory(JSON.parse(savedChatHistory));
+      } catch (e) {
+        console.error('加载聊天历史失败:', e);
+      }
+    }
+    
+    if (savedChatMessages) {
+      try {
+        setChatMessages(JSON.parse(savedChatMessages));
+      } catch (e) {
+        console.error('加载聊天消息失败:', e);
+      }
+    }
+  }, []);
+
+  // 保存聊天历史和消息到localStorage
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      localStorage.setItem('chat_history', JSON.stringify(chatHistory));
+    }
+    
+    if (Object.keys(chatMessages).length > 0) {
+      localStorage.setItem('chat_messages', JSON.stringify(chatMessages));
+    }
+  }, [chatHistory, chatMessages]);
 
   return (
     <Box 
@@ -146,6 +331,8 @@ const ChatInterface: React.FC = () => {
         currentChatId={currentChatId}
         chatHistory={chatHistory}
         onClearConversations={handleClearConversations}
+        onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
       />
       
       {/* 主聊天区域 */}
@@ -224,7 +411,7 @@ const ChatInterface: React.FC = () => {
                   display: { xs: 'block', md: 'none' }
                 }}
               >
-                移动设备提示: 如果无法使用键盘，请尝试点击"自动填入"按钮获取测试API Key。
+                移动设备提示: 请点击"自动填入"按钮获取测试API Key。
               </Typography>
             </Box>
           ) : (
@@ -282,7 +469,7 @@ const ChatInterface: React.FC = () => {
           sx={{ 
             position: 'absolute',
             bottom: { 
-              xs: 'calc(10vh)', // 移动设备上距离底部为屏幕高度的10%
+              xs: '0', // 固定在底部
               sm: '20px' // 桌面端保持20px距离
             },
             left: 0,
@@ -294,6 +481,7 @@ const ChatInterface: React.FC = () => {
             borderRadius: { xs: 0, sm: '8px' }, // 移动设备上无圆角
             mx: { xs: 0, sm: 'auto' }, // 移动设备上不居中
             maxWidth: { xs: '100%', sm: 'calc(100% - 40px)', md: 'calc(100% - 60px)' }, // 移动设备上占满宽度
+            minHeight: '100px', // 确保输入区域有最小高度
           }}
           className="input-area"
         >
@@ -302,6 +490,7 @@ const ChatInterface: React.FC = () => {
             onSendMessage={handleSendMessage} 
             isLoading={isLoading} 
             disabled={!apiKey || creditsError} 
+            onFocus={handleInputFocus}
           />
 
           {/* API Key提示 */}

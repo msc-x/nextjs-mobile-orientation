@@ -50,6 +50,28 @@ body {
   -ms-overflow-style: none;
 }
 
+/* 修复iOS Safari的高度计算问题 */
+@supports (-webkit-touch-callout: none) {
+  .h-screen {
+    height: -webkit-fill-available;
+  }
+  
+  .message-scroll-area {
+    max-height: -webkit-fill-available;
+  }
+  
+  .input-area {
+    bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+/* 防止iOS橡皮筋滚动效果 */
+.no-bounce {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
@@ -61,4 +83,9 @@ pre, code, a {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: break-word;
+}
+
+/* 隐藏iOS点击时的高亮效果 */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

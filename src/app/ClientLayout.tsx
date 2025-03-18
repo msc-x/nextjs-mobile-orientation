@@ -32,6 +32,28 @@ export default function ClientLayout({
     };
   }, []);
 
+  // 加载自动IP配置（如果存在）
+  useEffect(() => {
+    // 尝试动态导入自动IP配置脚本 (使用require方式避免TypeScript错误)
+    if (typeof window !== 'undefined') {
+      try {
+        // 动态加载，忽略类型检查
+        const importModule = async () => {
+          try {
+            // @ts-ignore - 文件可能不存在，这是预期行为
+            await import('@/utils/autoIp.js');
+          } catch (err) {
+            console.debug('自动IP配置未加载，可能未使用dev:ip启动');
+          }
+        };
+        
+        importModule();
+      } catch (err) {
+        // 忽略错误
+      }
+    }
+  }, []);
+
   return (
     <div className={styles.layoutContainer}>
       <Sidebar collapsed={collapsed} toggleCollapse={() => setCollapsed(!collapsed)} />

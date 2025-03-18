@@ -27,6 +27,8 @@ interface ChatSidebarProps {
   currentChatId?: string;
   chatHistory: string[];
   onClearConversations: () => void;
+  onSelectChat?: (chatId: string) => void;
+  onDeleteChat?: (chatId: string) => void; // 添加删除单个聊天的回调函数
 }
 
 const drawerWidth = 260;
@@ -35,7 +37,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onStartNewChat,
   currentChatId,
   chatHistory,
-  onClearConversations
+  onClearConversations,
+  onSelectChat,
+  onDeleteChat
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -51,6 +55,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     // 在移动设备上，选择聊天后自动关闭侧边栏
     if (isMobile) {
       setOpen(false);
+    }
+  };
+
+  // 处理删除单个聊天的函数
+  const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation(); // 阻止事件冒泡，防止触发选择聊天
+    if (onDeleteChat) {
+      onDeleteChat(chatId);
     }
   };
 
@@ -117,7 +129,29 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       }}>
         {chatHistory.length > 0 ? (
           chatHistory.map((title, index) => (
-            <ListItem key={index} disablePadding>
+            <ListItem 
+              key={index} 
+              disablePadding 
+              secondaryAction={
+                <IconButton 
+                  edge="end" 
+                  size="small"
+                  onClick={(e) => handleDeleteChat(e, `chat-${index}`)}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.5)',
+                    '&:hover': {
+                      color: 'rgba(255,255,255,0.8)',
+                      backgroundColor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              }
+              sx={{ 
+                pr: 6, // 为删除按钮留出空间
+              }}
+            >
               <ListItemButton 
                 selected={currentChatId === `chat-${index}`}
                 onClick={() => handleSelectChat(`chat-${index}`)}
