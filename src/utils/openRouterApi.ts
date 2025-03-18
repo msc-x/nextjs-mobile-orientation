@@ -19,8 +19,22 @@ export class InsufficientCreditsError extends Error {
 // OpenRouter API配置
 const openRouterConfig = {
   baseURL: 'https://openrouter.ai/api/v1',
-  defaultModel: 'mistralai/mistral-7b-instruct:free', // 模型ID
+  defaultModel: 'mistralai/mistral-7b-instruct:free', // 默认模型ID
 };
+
+// 可用模型列表
+export const availableModels = [
+  { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (免费)' },
+  { id: 'anthropic/claude-3-haiku:beta', name: 'Claude 3 Haiku' },
+  { id: 'anthropic/claude-3-sonnet:beta', name: 'Claude 3 Sonnet' },
+  { id: 'anthropic/claude-3-opus:beta', name: 'Claude 3 Opus' },
+  { id: 'openai/gpt-4o', name: 'GPT-4o' },
+  { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo' },
+  { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+  { id: 'google/gemini-pro', name: 'Gemini Pro' },
+  { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
+];
 
 // 验证API key格式是否正确
 function validateApiKey(apiKey: string): boolean {
@@ -33,9 +47,13 @@ function validateApiKey(apiKey: string): boolean {
 export async function createChatCompletion(
   apiKey: string,
   messages: ChatMessage[],
-  streamingHandler: StreamingHandler
+  streamingHandler: StreamingHandler,
+  model?: string // 新增模型参数
 ) {
   console.log('开始API调用，消息数量:', messages.length);
+  
+  // 使用指定的模型或默认模型
+  const selectedModel = model || openRouterConfig.defaultModel;
   
   // 验证API key
   if (!apiKey) {
@@ -50,7 +68,7 @@ export async function createChatCompletion(
 
   try {
     console.log('使用API Key (部分隐藏):', apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4));
-    console.log('调用模型:', openRouterConfig.defaultModel);
+    console.log('调用模型:', selectedModel);
     
     const openai = new OpenAI({
       apiKey,
@@ -61,7 +79,7 @@ export async function createChatCompletion(
     // 发起流式请求
     const stream = await openai.chat.completions.create({
       messages,
-      model: openRouterConfig.defaultModel,
+      model: selectedModel,
       stream: true,
     }, {
       headers: {

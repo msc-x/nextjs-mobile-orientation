@@ -1,15 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Typography, Alert, Snackbar, Container, Paper, Button, Link } from '@mui/material';
+import { Box, Typography, Alert, Snackbar, Container, Paper, Button, Link, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import ChatMessage from '../ChatMessage';
 import ChatInput from '../ChatInput';
 import ApiKeyInput from '../ApiKeyInput';
 import ChatSidebar from '../ChatSidebar';
-import { ChatMessage as ChatMessageType, createChatCompletion, InsufficientCreditsError } from '@/utils/openRouterApi';
+import { ChatMessage as ChatMessageType, createChatCompletion, InsufficientCreditsError, availableModels } from '@/utils/openRouterApi';
 import AddIcon from '@mui/icons-material/Add';
 
 const ChatInterface: React.FC = () => {
   // 保存API Key
   const [apiKey, setApiKey] = useState<string>('');
+  
+  // 所选AI模型
+  const [selectedModel, setSelectedModel] = useState<string>(availableModels[0].id);
+  
+  // 免费模型ID
+  const FREE_MODEL_ID = 'mistralai/mistral-7b-instruct:free';
+  
+  // 模型权限对话框状态
+  const [modelPermissionDialog, setModelPermissionDialog] = useState({
+    open: false,
+    attemptedModelId: '',
+    attemptedModelName: ''
+  });
+  
+  // 当前对话使用的模型
+  const [currentChatModel, setCurrentChatModel] = useState<string>('');
+
+  // 所有聊天使用的模型，格式为 {[chatId]: string}
+  const [chatModels, setChatModels] = useState<{[key: string]: string}>({});
   
   // 消息列表 - 当前显示的消息
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -53,6 +72,34 @@ const ChatInterface: React.FC = () => {
     setCreditsError(false); // 重置余额错误状态
   };
 
+  // 处理模型变更
+  const handleModelChange = (event: SelectChangeEvent) => {
+    const newModelId = event.target.value;
+    
+    // 如果选择了免费模型，直接设置
+    if (newModelId === FREE_MODEL_ID) {
+      setSelectedModel(newModelId);
+      return;
+    }
+    
+    // 尝试选择付费模型，显示提示对话框
+    const selectedModelInfo = availableModels.find(model => model.id === newModelId);
+    setModelPermissionDialog({
+      open: true,
+      attemptedModelId: newModelId,
+      attemptedModelName: selectedModelInfo ? selectedModelInfo.name : newModelId
+    });
+  };
+
+  // 关闭模型权限对话框
+  const handleCloseModelDialog = () => {
+    setModelPermissionDialog({
+      open: false,
+      attemptedModelId: '',
+      attemptedModelName: ''
+    });
+  };
+
   // 处理选择聊天
   const handleSelectChat = (chatId: string) => {
     // 如果已经选择了当前聊天，不做任何操作
@@ -75,6 +122,13 @@ const ChatInterface: React.FC = () => {
     const chatMsgs = chatMessages[chatId] || [];
     setMessages(chatMsgs);
     console.log(`加载聊天 ${chatId} 的消息，数量:`, chatMsgs.length);
+    
+    // 加载所选聊天的模型（但只显示，实际使用免费模型）
+    const chatModel = chatModels[chatId] || FREE_MODEL_ID;
+    setCurrentChatModel(chatModel);
+    
+    // 始终使用免费模型
+    setSelectedModel(FREE_MODEL_ID);
     
     // 重置流式内容和错误状态
     setStreamingContent('');
@@ -101,6 +155,13 @@ const ChatInterface: React.FC = () => {
       const chatTitle = content.length > 30 ? content.substring(0, 27) + '...' : content;
       setChatHistory(prev => [...prev, chatTitle]);
       
+      // 记录所使用的模型 - 始终使用免费模型
+      setCurrentChatModel(FREE_MODEL_ID);
+      setChatModels(prev => ({
+        ...prev,
+        [newChatId]: FREE_MODEL_ID
+      }));
+      
       // 设置为当前聊天
       setCurrentChatId(newChatId);
       
@@ -121,6 +182,13 @@ const ChatInterface: React.FC = () => {
         messagesWithSystem = [systemMessage, ...updatedMessages];
       }
       
+      // 始终使用免费模型
+      setCurrentChatModel(FREE_MODEL_ID);
+      setChatModels(prev => ({
+        ...prev,
+        [currentChatId]: FREE_MODEL_ID
+      }));
+      
       // 更新现有聊天的消息
       setChatMessages(prev => ({
         ...prev,
@@ -140,7 +208,7 @@ const ChatInterface: React.FC = () => {
       const apiMessages = messagesWithSystem;
       console.log('发送给API的消息数量:', apiMessages.length);
       
-      // 调用API进行流式响应
+      // 调用API进行流式响应 - 始终使用免费模型
       await createChatCompletion(
         apiKey,
         apiMessages,
@@ -164,7 +232,8 @@ const ChatInterface: React.FC = () => {
               }));
             }
           }
-        }
+        },
+        FREE_MODEL_ID // 始终使用免费模型ID
       );
     } catch (err) {
       console.error('Error sending message:', err);
@@ -205,6 +274,7 @@ const ChatInterface: React.FC = () => {
   const handleClearConversations = () => {
     setChatHistory([]);
     setChatMessages({});
+    setChatModels({}); // 清空所有聊天模型记录
     handleNewChat();
   };
 
@@ -216,19 +286,23 @@ const ChatInterface: React.FC = () => {
     // 复制一份聊天历史记录和消息
     const newChatHistory = [...chatHistory];
     const newChatMessages = {...chatMessages};
+    const newChatModels = {...chatModels};
     
-    // 删除对应的聊天历史和消息
+    // 删除对应的聊天历史、消息和模型记录
     newChatHistory.splice(index, 1);
     delete newChatMessages[chatId];
+    delete newChatModels[chatId];
     
     // 更新状态
     setChatHistory(newChatHistory);
     setChatMessages(newChatMessages);
+    setChatModels(newChatModels);
     
     // 如果删除的是当前选中的聊天，则清空当前显示的消息
     if (currentChatId === chatId) {
       setMessages([]);
       setCurrentChatId(undefined);
+      setCurrentChatModel(''); // 清空当前模型
     } else if (currentChatId) {
       // 如果当前聊天ID的索引大于被删除的聊天索引，需要更新当前聊天ID
       const currentIndex = parseInt(currentChatId.replace('chat-', ''));
@@ -236,6 +310,7 @@ const ChatInterface: React.FC = () => {
         const newCurrentChatId = `chat-${currentIndex - 1}`;
         setCurrentChatId(newCurrentChatId);
         setMessages(newChatMessages[newCurrentChatId] || []);
+        setCurrentChatModel(newChatModels[newCurrentChatId] || ''); // 更新当前模型
       }
     }
   };
@@ -286,6 +361,7 @@ const ChatInterface: React.FC = () => {
   useEffect(() => {
     const savedChatHistory = localStorage.getItem('chat_history');
     const savedChatMessages = localStorage.getItem('chat_messages');
+    const savedChatModels = localStorage.getItem('chat_models');
     
     if (savedChatHistory) {
       try {
@@ -302,6 +378,14 @@ const ChatInterface: React.FC = () => {
         console.error('加载聊天消息失败:', e);
       }
     }
+    
+    if (savedChatModels) {
+      try {
+        setChatModels(JSON.parse(savedChatModels));
+      } catch (e) {
+        console.error('加载聊天模型失败:', e);
+      }
+    }
   }, []);
 
   // 保存聊天历史和消息到localStorage
@@ -313,7 +397,17 @@ const ChatInterface: React.FC = () => {
     if (Object.keys(chatMessages).length > 0) {
       localStorage.setItem('chat_messages', JSON.stringify(chatMessages));
     }
-  }, [chatHistory, chatMessages]);
+    
+    if (Object.keys(chatModels).length > 0) {
+      localStorage.setItem('chat_models', JSON.stringify(chatModels));
+    }
+  }, [chatHistory, chatMessages, chatModels]);
+
+  // 模型名称获取函数
+  const getModelName = (modelId: string): string => {
+    const model = availableModels.find(model => model.id === modelId);
+    return model ? model.name : modelId;
+  };
 
   return (
     <Box 
@@ -349,6 +443,112 @@ const ChatInterface: React.FC = () => {
           overflowX: 'hidden', // 强制禁止水平滚动
         }}
       >
+        {/* 模型权限对话框 */}
+        <Dialog
+          open={modelPermissionDialog.open}
+          onClose={handleCloseModelDialog}
+          aria-labelledby="model-permission-dialog-title"
+        >
+          <DialogTitle id="model-permission-dialog-title">
+            无法使用付费模型
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              很抱歉，您没有足够的额度使用 <strong>{modelPermissionDialog.attemptedModelName}</strong> 模型。
+              当前只能使用免费模型：<strong>{getModelName(FREE_MODEL_ID)}</strong>。
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseModelDialog} color="primary" autoFocus>
+              我知道了
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* 顶部模型选择区域 */}
+        <Box 
+          sx={{ 
+            p: 2, 
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: { xs: 'space-between', sm: 'flex-end' },
+            bgcolor: 'background.paper',
+            zIndex: 5,
+          }}
+        >
+          {currentChatId && (
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'text.secondary',
+                display: { xs: 'block', sm: 'none' }
+              }}
+            >
+              当前聊天
+            </Typography>
+          )}
+          <FormControl 
+            size="small" 
+            sx={{ 
+              minWidth: 180, 
+              maxWidth: { xs: '65%', sm: 220 } 
+            }}
+          >
+            <InputLabel id="model-select-label">AI 模型</InputLabel>
+            <Select
+              labelId="model-select-label"
+              id="model-select"
+              value={selectedModel}
+              label="AI 模型"
+              onChange={handleModelChange}
+            >
+              {availableModels.map((model) => (
+                <MenuItem key={model.id} value={model.id} 
+                  sx={model.id !== FREE_MODEL_ID ? {
+                    '&::after': {
+                      content: '"🔒"',
+                      marginLeft: 1,
+                      opacity: 0.6,
+                    }
+                  } : {
+                    '&::after': {
+                      content: '"✓ 免费"',
+                      marginLeft: 1,
+                      fontSize: '0.75rem',
+                      color: 'success.main',
+                    }
+                  }}
+                >
+                  {model.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+        
+        {/* 当前模型信息 - 增加付费模型提示 */}
+        {messages.length > 0 && (
+          <Box 
+            sx={{ 
+              p: 2, 
+              borderBottom: '1px solid rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              display: { xs: 'none', sm: 'block' }
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              当前对话使用模型: <strong>{getModelName(FREE_MODEL_ID)}</strong> (免费)
+              {currentChatModel !== FREE_MODEL_ID && (
+                <Typography component="span" variant="body2" color="warning.main" sx={{ ml: 1 }}>
+                  (原选择: {getModelName(currentChatModel)})
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+        )}
+        
         {/* 消息列表区 - 只有这里应该有滚动条，但我们隐藏了它 */}
         <Box 
           sx={{ 
@@ -397,7 +597,22 @@ const ChatInterface: React.FC = () => {
                 </Button>
               )}
 
-              {/* 添加移动设备提示信息 */}
+              {/* 添加模型选择提示 */}
+              {apiKey && (
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  sx={{ 
+                    mt: 3, 
+                    textAlign: 'center',
+                    maxWidth: '80%'
+                  }}
+                >
+                  您可以在顶部下拉菜单中选择不同的AI模型。不同模型有不同的特点和能力。
+                </Typography>
+              )}
+
+              {/* 移动设备提示信息 */}
               <Typography 
                 variant="body2" 
                 color="text.secondary" 
