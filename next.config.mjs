@@ -30,8 +30,22 @@ const nextConfig = {
       },
     });
 
+    // 解决 Atlassian Pragmatic Drag-and-Drop 包的 ESM/CJS 兼容性问题
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@atlaskit/pragmatic-drag-and-drop/element/adapter': 
+        './node_modules/@atlaskit/pragmatic-drag-and-drop/dist/esm/entry-point/element/adapter.js',
+      '@atlaskit/pragmatic-drag-and-drop/combine': 
+        './node_modules/@atlaskit/pragmatic-drag-and-drop/dist/esm/entry-point/combine.js',
+    };
+
     return config;
   },
+  // 确保 Atlassian 包被正确转译
+  transpilePackages: [
+    '@atlaskit/pragmatic-drag-and-drop',
+    '@atlaskit/pragmatic-drag-and-drop-hitbox',
+  ],
   // 允许跨域资源
   async headers() {
     return [

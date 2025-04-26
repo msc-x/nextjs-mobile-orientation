@@ -1,0 +1,60 @@
+.draggable {
+  cursor: grab;
+  user-select: none;
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+
+.draggable:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.5 !important;
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.02);
+}
+
+.dropTarget {
+  transition: background-color 0.2s;
+}
+
+.dropTarget.canDrop {
+  background-color: rgba(0, 120, 255, 0.05) !important;
+  border: 1px dashed rgba(0, 120, 255, 0.5) !important;
+}
+
+.taskCard {
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.taskColumn {
+  padding: 16px;
+  border-radius: 4px;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.columnTitle {
+  font-weight: 500;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .taskCard {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  
+  .taskColumn {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+} 
